@@ -1,0 +1,3 @@
+locals {
+  tag = terraform.workspace
+}

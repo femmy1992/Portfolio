@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Put Item in DynamoDB</title>
+    <!-- Add some CSS to change client UI -->
+    <style>
+        body {
+            background-color: #232F3E;
+        }
+        label, button {
+            color: #FF9900;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 20px;
+            margin-left: 40px;
+        }
+        input {
+            color: #232F3E;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 20px;
+            margin-left: 20px;
+        }
+    </style>
+    <script>
+        // Define the callAPI function
+        var callAPI = (ID, data) => {
+            var myHeaders = new Headers();
+            myHeaders.append("Content-Type", "application/json");
+            var raw = JSON.stringify({ "ID": ID, ...data });
+            var requestOptions = {
+                method: 'POST',
+                headers: myHeaders,
+                body: raw,
+                redirect: 'follow'
+            };
+            fetch("api-url", requestOptions)
+                .then(response => response.text())
+                .then(result => console.log(JSON.parse(result)))
+                .catch(error => console.log('error', error));
+        }
+
+        // Handle form submission
+        var handleSubmit = (event) => {
+            event.preventDefault();
+            var ID = document.getElementById('ID').value;
+            var firstName = document.getElementById('fName').value;
+            var lastName = document.getElementById('lName').value;
+            var email = document.getElementById('email').value;
+
+            // Create the data object with the desired key-value pairs
+            var data = {
+                "FirstName": firstName,
+                "LastName": lastName,
+                "Email": email
+               
+            };
+
+            // Call the API with the ID and data
+            callAPI(ID, data);
+
+            // Clear the form inputs
+            document.getElementById('ID').value = '';
+            document.getElementById('fName').value = '';
+            document.getElementById('lName').value = '';
+            document.getElementById('email').value = '';
+
+        }
+    </script>
+</head>
+<body>
+    <form onsubmit="handleSubmit(event)">
+        <label>ID:</label>
+        <input type="text" id="ID">
+        <br>
+        <label>First Name:</label>
+        <input type="text" id="fName">
+        <br>
+        <label>Last Name:</label>
+        <input type="text" id="lName">
+        <br>
+        <label>Email:</label>
+        <input type="text" id="email">
+        <br>
+        <button type="submit">callAPI</button>
+    </form>
+</body>
+</html>
