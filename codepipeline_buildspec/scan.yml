@@ -1,0 +1,39 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 18
+    commands:
+      - apt-get update && apt-get install -y python3-pip openjdk-17-jdk wget unzip jq
+      - npm install -g yarn
+      - wget -qO /tmp/sonar-scanner.zip "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.0.2966-linux.zip"
+      - unzip -q /tmp/sonar-scanner.zip -d /tmp
+      # Install OWASP Dependency Check CLI
+      - wget -qO- "https://github.com/jeremylong/DependencyCheck/releases/download/v6.5.3/dependency-check-6.5.3-release.zip" > /tmp/dependency-check.zip
+      - unzip -q /tmp/dependency-check.zip -d /tmp
+      # Install detect-secrets for secret detection
+      - pip install detect-secrets
+  build:
+    commands:
+      - echo Start code scan...
+      - TIMESTAMP=$(date +%Y%m%d%H%M%S)
+      # SonarQube scan
+      - echo "Running SonarQube scan..."
+      - /tmp/sonar-scanner-*/bin/sonar-scanner -Dsonar.projectKey=$SONARQUBE_PROJECT -Dsonar.sources=lambda/code -Dsonar.host.url=$SONARQUBE_URL -Dsonar.login=$SONARQUBE_KEY
+      # OWASP Dependency Check 
+      - echo "Running OWASP Dependency Check for client..."
+      - /tmp/dependency-check/bin/dependency-check.sh --project "project" --scan lambda/code --out /tmp/dependency-check-report || true
+      - mv /tmp/dependency-check-report /tmp/dependency-check-report-${TIMESTAMP}
+      - echo "Dependency Check report generated at /tmp/dependency-check-report-${TIMESTAMP}"
+      - echo "Uploading Dependency Check report to S3..."
+      - aws s3 cp /tmp/dependency-check-report-${TIMESTAMP} s3://devops-pipeline-bucket/project/scan_reports/dependency-check/dependency-check-report-${TIMESTAMP} --recursive
+      # Secret detection scan
+      - echo "Running secret detection with detect-secrets ..."
+      - detect-secrets scan IFDSReporting_lambda/code > /tmp/report-${TIMESTAMP}.txt
+      - echo "Uploading secret detection report to S3..."
+      - aws s3 cp /tmp/report-${TIMESTAMP}.txt s3://devops-pipeline-bucket/project/scan_reports/secret_detection/report-${TIMESTAMP}.txt
+      - sleep 7
+      - "curl -s -u $SONARQUBE_KEY: $SONARQUBE_URL/api/qualitygates/project_status?projectKey=$SONARQUBE_PROJECT > /tmp/result.json"
+      - if [ $(jq -r '.projectStatus.status' /tmp/result.json) = "ERROR" ] ; then echo "Quality gate failed"; exit 1; fi
+      - echo Code scan completed on $(date '+%Y-%m-%d %H:%M:%S')
