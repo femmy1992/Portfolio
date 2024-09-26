@@ -4,8 +4,8 @@ resource "aws_lambda_layer_version" "lambda_layer" {
   layer_name       = "python-dependencies-layer"
   compatible_runtimes = ["python3.11"] 
   compatible_architectures = ["x86_64"]
-  filename         = data.archive_file.lambda_dependencies_layer.output_path
-  source_code_hash = data.archive_file.lambda_dependencies_layer.output_base64sha256
+  s3_bucket = "bucket_name"
+  s3_key = "lambda-layer/lambda_layer.zip"
 }
 
 # lambda function

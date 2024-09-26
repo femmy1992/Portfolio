@@ -26,8 +26,3 @@ data "archive_file" "python_lambda_package" {
   output_path = "${path.module}/lambda_function_${each.key}.zip"
 }
 
-data "archive_file" "lambda_dependencies_layer" {
-  type        = "zip"
-  source_dir  = "./layers"
-  output_path = "${path.module}/layer_content.zip"
-}
