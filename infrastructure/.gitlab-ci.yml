@@ -1,0 +1,148 @@
+stages:
+  - test
+  - deploy
+
+# Stage Plan
+terraform plan stage:
+  stage: test
+  rules:
+    - if: $CI_MERGE_REQUEST_IID && $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_BRANCH == "develop"
+  variables:
+    ENVIRONMENT: stage
+    AWS_ACCESS_KEY_ID: $STAGE_AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY: $STAGE_AWS_SECRET_ACCESS_KEY
+  image:
+    name: hashicorp/terraform:latest
+    entrypoint: ['']
+  before_script:
+    - cd infrastructure
+    - cat $TERRAFORM_STAGE_VARS > variables.auto.tfvars
+    - |
+      terraform init  \
+      -backend-config="bucket=stage-terraform-state" \
+      -backend-config="dynamodb_table=terraform-state-lock" \
+      -backend-config="region=ca-central-1"
+  script:
+    - terraform plan
+
+# Stage Apply
+terraform apply stage:
+  stage: deploy
+  when: manual
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+  variables:
+    ENVIRONMENT: stage
+    AWS_ACCESS_KEY_ID: $STAGE_AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY: $STAGE_AWS_SECRET_ACCESS_KEY
+  image:
+    name: hashicorp/terraform:latest
+    entrypoint: ['']
+  before_script:
+    - cd infrastructure
+    - cat $TERRAFORM_STAGE_VARS > variables.auto.tfvars
+    - |
+      terraform init  \
+      -backend-config="bucket=stage-terraform-state" \
+      -backend-config="dynamodb_table=terraform-state-lock" \
+      -backend-config="region=ca-central-1"
+    - terraform refresh
+  script:
+    - terraform apply -auto-approve
+
+# QA Plan
+terraform plan qa:
+  stage: test
+  rules:
+    - if: $CI_MERGE_REQUEST_IID && $CI_COMMIT_BRANCH =~ /release\/*/
+    - if: $CI_COMMIT_BRANCH =~ /release\/*/
+  variables:
+    ENVIRONMENT: qa
+    AWS_ACCESS_KEY_ID: $QA_AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY: $QA_AWS_SECRET_ACCESS_KEY
+  image:
+    name: hashicorp/terraform:latest
+    entrypoint: ['']
+  before_script:
+    - cd infrastructure
+    - cat $TERRAFORM_QA_VARS > variables.auto.tfvars
+    - |
+      terraform init  \
+      -backend-config="bucket=qa-terraform-state" \
+      -backend-config="dynamodb_table=terraform-state-lock" \
+      -backend-config="region=ca-central-1"
+  script:
+    - terraform plan
+
+# QA Apply
+terraform apply qa:
+  stage: deploy
+  when: manual
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /release\/*/
+  variables:
+    ENVIRONMENT: qa
+    AWS_ACCESS_KEY_ID: $QA_AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY: $QA_AWS_SECRET_ACCESS_KEY
+  image:
+    name: hashicorp/terraform:latest
+    entrypoint: ['']
+  before_script:
+    - cd infrastructure
+    - cat $TERRAFORM_QA_VARS > variables.auto.tfvars
+    - |
+      terraform init  \
+      -backend-config="bucket=qa-terraform-state" \
+      -backend-config="dynamodb_table=terraform-state-lock" \
+      -backend-config="region=ca-central-1"
+  script:
+    - terraform apply -auto-approve
+
+# Prod Plan
+terraform plan prod:
+  stage: test
+  rules:
+    - if: $CI_MERGE_REQUEST_IID && $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "main"
+  variables:
+    ENVIRONMENT: prod
+    AWS_ACCESS_KEY_ID: $PROD_AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY: $PROD_AWS_SECRET_ACCESS_KEY
+  image:
+    name: hashicorp/terraform:latest
+    entrypoint: ['']
+  before_script:
+    - cd infrastructure
+    - cat $TERRAFORM_PROD_VARS > variables.auto.tfvars
+    - |
+      terraform init  \
+      -backend-config="bucket=prod-terraform-state" \
+      -backend-config="dynamodb_table=prod-terraform-state-lock" \
+      -backend-config="region=ca-central-1"
+  script:
+    - terraform plan
+
+# Prod Apply
+terraform apply prod:
+  stage: deploy
+  when: manual
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  variables:
+    ENVIRONMENT: prod
+    AWS_ACCESS_KEY_ID: $PROD_AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY: $PROD_AWS_SECRET_ACCESS_KEY
+  image:
+    name: hashicorp/terraform:latest
+    entrypoint: ['']
+  before_script:
+    - cd infrastructure
+    - cat $TERRAFORM_PROD_VARS > variables.auto.tfvars
+    - |
+      terraform init  \
+      -backend-config="bucket=prod-terraform-state" \
+      -backend-config="dynamodb_table=prod-terraform-state-lock" \
+      -backend-config="region=ca-central-1"
+  script:
+    - terraform apply -auto-approve

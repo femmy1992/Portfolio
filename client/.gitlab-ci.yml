@@ -1,0 +1,96 @@
+stages:
+  - test
+  - build
+  - deploy
+
+image:
+  name: node:18-alpine
+
+lint:
+  stage: test
+  before_script:
+    - cd client
+    - yarn install --frozen-lockfile
+  script:
+    - yarn lint
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_BRANCH =~ /release\/*/
+    - if: $CI_COMMIT_BRANCH == "main"
+
+lingui:
+  stage: test
+  before_script:
+    - cd client
+    - yarn install --frozen-lockfile
+  script:
+    - yarn lingui:ci
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_BRANCH =~ /release\/*/
+    - if: $CI_COMMIT_BRANCH == "main"
+  allow_failure: true
+
+build:
+  stage: build
+  before_script:
+    - cd client
+    - yarn install --frozen-lockfile
+  script:
+    - yarn build
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_BRANCH =~ /release\/*/
+    - if: $CI_COMMIT_BRANCH == "main"
+
+deploy staging:
+  stage: deploy
+  variables:
+    AWS_ACCESS_KEY_ID: $STAGE_AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY: $STAGE_AWS_SECRET_ACCESS_KEY
+  before_script:
+    - cd client
+    - yarn install --frozen-lockfile
+    - apk add --no-cache aws-cli
+  script:
+    - cat ${CLIENT_STAGE_DOTENV} > .env
+    - yarn build
+    - aws s3 cp --recursive dist s3://stage-bucket
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+deploy qa:
+  stage: deploy
+  variables:
+    AWS_ACCESS_KEY_ID: $QA_AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY: $QA_AWS_SECRET_ACCESS_KEY
+  before_script:
+    - cd client
+    - yarn install --frozen-lockfile
+    - apk add --no-cache aws-cli
+  script:
+    - cat ${CLIENT_QA_DOTENV} > .env
+    - yarn build
+    - aws s3 cp --recursive dist s3://qa-bucket
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /release\/*/
+
+deploy prod:
+  stage: deploy
+  variables:
+    AWS_ACCESS_KEY_ID: $PROD_AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY: $PROD_AWS_SECRET_ACCESS_KEY
+  before_script:
+    - cd client
+    - yarn install --frozen-lockfile
+    - apk add --no-cache aws-cli
+  script:
+    - cat ${CLIENT_PROD_DOTENV} > .env
+    - yarn build
+    - aws s3 cp --recursive dist s3://prod-bucket
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+

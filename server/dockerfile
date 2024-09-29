@@ -1,0 +1,20 @@
+
+FROM node:18-alpine
+ARG APP_PORT
+
+WORKDIR /
+COPY package.json .
+
+WORKDIR /common
+COPY common .
+RUN yarn
+COPY common .
+RUN yarn build
+
+WORKDIR /server
+COPY server .
+RUN yarn
+COPY server .
+
+EXPOSE $APP_PORT
+CMD [ "yarn", "start" ]

@@ -1,0 +1,72 @@
+stages:
+  - triggers
+  - report
+  - test
+
+# Client
+client:
+  stage: triggers
+  trigger:
+    include: client/.gitlab-ci.yml
+    strategy: depend
+  rules:
+    - if: ($CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH =~ /release\/*/ || $CI_COMMIT_BRANCH == "main" || $CI_MERGE_REQUEST_IID)
+      changes:
+        - common/**/*
+        - client/**/*
+
+# Server
+server:
+  stage: triggers
+  trigger:
+    include: server/.gitlab-ci.yml
+    strategy: depend
+  rules:
+    - if: ($CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH =~ /release\/*/ || $CI_COMMIT_BRANCH == "main")
+      changes:
+        - common/**/*
+        - server/**/*
+
+# Infrastructure
+infrastructure:
+  stage: triggers
+  trigger:
+    include: infrastructure/.gitlab-ci.yml
+    strategy: depend
+  rules:
+    - if: ($CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH =~ /release\/*/ || $CI_COMMIT_BRANCH == "main" || $CI_MERGE_REQUEST_IID)
+      changes:
+        - infrastructure/**/*
+
+# Sonar
+sonarqube-check:
+  image:
+    name: sonarsource/sonar-scanner-cli:latest
+    entrypoint: ['']
+  stage: report
+  variables:
+    SONAR_HOST_URL: 'https://sonarqube.com'
+    SONAR_USER_HOME: '${CI_PROJECT_DIR}/.sonar' # Defines the location of the analysis task cache
+    GIT_DEPTH: '0' # Tells git to fetch all the branches of the project, required by the analysis task
+  cache:
+    key: '${CI_JOB_NAME}'
+    paths:
+      - .sonar/cache
+  script:
+    - sonar-scanner
+  allow_failure: true
+  only:
+    - merge_requests
+    - develop
+   
+#Checkmarx
+checkmarx-scan:
+  stage: test
+  trigger:
+    include: CheckmarxCLI.gitlab-ci.yml
+  allow_failure: true
+  only:
+    - merge_requests
+    - develop
+    
+   

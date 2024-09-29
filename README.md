@@ -1,24 +1,13 @@
-# Automated Data Transfer & Security Pipeline with SFTP, AWS S3, SharePoint, and CodePipeline
+# Application Dashboard - Full-Stack AWS Deployment with GitLab CI/CD and Terraform
 
-This project automates the data transfer workflow between an SFTP server, AWS S3, and SharePoint using AWS Lambda functions. The goal is to enable seamless file transfers across multiple platforms with built-in security and compliance scans. The project includes two Lambda functions:
+Developed and deployed an Application Dashboard, a full-stack web application used by financial advisors. 
 
-1. SFTP to S3 Data Transfer: Automatically pulls files from an SFTP server, uploads them to an S3 bucket, and removes the files from the SFTP server.
+The project features an automated GitLab CI/CD pipeline that manages the deployment of both the frontend and backend. 
 
-2. S3 to SharePoint File Sync: Syncs files from the S3 bucket to a specified folder in SharePoint, ensuring data accessibility and organization.
+The frontend, built with Node.js, is deployed as a static website to Amazon S3 and served through AWS CloudFront with Web Application Firewall (WAF) protection for enhanced security. The backend, a containerized API, is built using Docker and deployed to AWS ECS (Elastic Container Service). 
 
-The project also includes a cloudformation code for robust CI/CD pipeline set up using AWS CodePipeline. The pipeline performs multiple stages of testing and security scanning to maintain the integrity of the project, including:
+All AWS infrastructure, including S3, ECS, CloudFront, WAF, and ECR, is provisioned using Terraform for infrastructure as code (IaC).
 
-1. SonarQube for code quality checks and bug detection.
+The pipeline handles different environments (staging, QA, and production) based on Git branch triggers, with automated linting, testing, building, and infrastructure updates. 
 
-2. OWASP Dependency Check for vulnerability scanning in third-party libraries.
-
-3. Secret Detection to identify and handle any sensitive information before deployment.
-
-These security scans and tests run in the staging environment pipeline as a part of the project’s compliance to modern security standards.
-
-# Key Features:
-
-1. Seamless file transfers between SFTP, S3, and SharePoint using Python Lambda functions.
-2. Secure and automated CI/CD pipeline utilizing AWS services.
-3. Code and dependency vulnerability checks using SonarQube, OWASP Dependency Check, and Secret Detection.
-4. This project showcases an end-to-end automation solution with integrated security best practices, making it a great   fit for businesses needing automated file management workflows with robust security and compliance checks.
+This solution ensures seamless, repeatable application delivery across all environments.

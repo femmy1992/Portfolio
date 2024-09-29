@@ -1,0 +1,90 @@
+stages:
+  - deploy
+
+variables:
+  DOCKER_REGISTRY: ${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ''
+  DOCKER_DRIVER: overlay2
+  APP_NAME: application-api
+  APP_PORT: 4444
+  DOCKER_BUILD_DIR: ..
+  DOCKERFILE_PATH: server/dockerfile
+
+.ecs-deploy: &ecs-deploy
+  - apk add --no-cache aws-cli
+  - aws configure set AWS_ACCESS_KEY_ID $AWS_ACCESS_KEY_ID
+  - aws configure set AWS_SECRET_ACCESS_KEY $AWS_SECRET_ACCESS_KEY
+  - aws ecr get-login-password | docker login --username AWS --password-stdin $DOCKER_REGISTRY
+  # Run docker build in a different directory to reference common folder
+  - CURRENT_DIR=$PWD
+  - cd ${DOCKER_BUILD_DIR}
+  - docker build . -f ${DOCKERFILE_PATH} -t $DOCKER_REGISTRY/$REPOSITORY_NAME:latest --build-arg APP_PORT=$APP_PORT --no-cache
+  - cd ${CURRENT_DIR}
+  # Return to current directory
+  - docker push $DOCKER_REGISTRY/$REPOSITORY_NAME:latest
+  - aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --force-new-deployment --region $AWS_DEFAULT_REGION
+  - aws ecs wait services-stable --cluster $CLUSTER_NAME --services $SERVICE_NAME
+
+deploy stage:
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+  image: docker:stable
+  services:
+    - docker:dind
+  variables:
+    ENVIRONMENT: stage
+    CLUSTER_NAME: stage-cluster
+    SERVICE_NAME: stage-api-service
+    REPOSITORY_NAME: stage-api
+    ACCOUNT_ID: 111111111111
+    AWS_ACCESS_KEY_ID: $STAGE_AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY: $STAGE_AWS_SECRET_ACCESS_KEY
+  before_script:
+    - cd server
+    - cat ${SERVER_STAGE_DOTENV} > .env
+  script:
+    - *ecs-deploy
+
+deploy qa:
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /release\/*/
+  image: docker:stable
+  services:
+    - docker:dind
+  variables:
+    ENVIRONMENT: qa
+    CLUSTER_NAME: qa-cluster
+    SERVICE_NAME: qa-api-service
+    REPOSITORY_NAME: qa-api
+    ACCOUNT_ID: 222222222222
+    AWS_ACCESS_KEY_ID: $QA_AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY: $QA_AWS_SECRET_ACCESS_KEY
+  before_script:
+    - cd server
+    - cat ${SERVER_QA_DOTENV} > .env
+  script:
+    - *ecs-deploy
+
+deploy prod:
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  image: docker:stable
+  services:
+    - docker:dind
+  variables:
+    ENVIRONMENT: prod
+    CLUSTER_NAME: prod-cluster
+    SERVICE_NAME: prod-api-service
+    REPOSITORY_NAME: prod-api
+    ACCOUNT_ID: 333333333333
+    AWS_ACCESS_KEY_ID: $PROD_AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY: $PROD_AWS_SECRET_ACCESS_KEY
+  before_script:
+    - cd server
+    - cat ${SERVER_PROD_DOTENV} > .env
+  script:
+    - *ecs-deploy
