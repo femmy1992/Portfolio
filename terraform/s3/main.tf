@@ -25,6 +25,12 @@ resource "aws_s3_bucket_versioning" "versioning" {
   }
 }
 
+# bucket notification
+resource "aws_s3_bucket_notification" "s3_to_eventbridge" {
+  bucket = aws_s3_bucket.bucket.id
+  eventbridge = true
+}
+
 # Define S3 bucket lifecycle configuration
 resource "aws_s3_bucket_lifecycle_configuration" "lifecycle" {
   bucket = aws_s3_bucket.bucket.id

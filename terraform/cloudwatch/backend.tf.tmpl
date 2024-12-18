@@ -1,7 +1,7 @@
 terraform {
   backend "s3" {
     bucket         = "terraform-state"
-    key            = "canchek/s3.tfstate"
+    key            = "int_framework/cloudwatch.tfstate"
     region         = "ca-central-1"
     encrypt        = true
     dynamodb_table = "${environment}-terraform-state-lock"

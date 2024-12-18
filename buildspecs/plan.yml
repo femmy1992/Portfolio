@@ -8,30 +8,12 @@ phases:
         if [ "$DEPLOYMENT_ENVIRONMENT" = "production" ]; then
           ROLE_ARN_KEY="/codepipeline/production/roleArn"
           ENV_TAG="production"
-          ENV_PREFIX="prod01"
-          SP_USERNAME="<sharepoint_prod_user>"
-          SP_SITE_URL="https://sharepoint.com/sites/prod/"
-          SFTP_HOST="<sftp.com>"
-          SFTP_USERNAME="prod"
-          SFTP_DIRECTORY="/outgoing"
         elif [ "$DEPLOYMENT_ENVIRONMENT" = "staging" ]; then
           ROLE_ARN_KEY="/codepipeline/staging/roleArn"
           ENV_TAG="staging"
-          ENV_PREFIX="stg01"
-          SP_USERNAME="<sharepoint_stg_user>"
-          SP_SITE_URL="https://sharepoint.com/sites/stg/"
-          SFTP_HOST="<sftp.com>"
-          SFTP_USERNAME="stg"
-          SFTP_DIRECTORY="/outgoing"
         else
           ROLE_ARN_KEY="/codepipeline/development/roleArn"
           ENV_TAG="development"
-          ENV_PREFIX="dev01"
-          SP_USERNAME="<sharepoint_dev_user>"
-          SP_SITE_URL="https://sharepoint.com/sites/dev/"
-          SFTP_HOST="<sftp.com>"
-          SFTP_USERNAME="dev"
-          SFTP_DIRECTORY="/outgoing"
         fi
       - echo "ROLE_ARN_KEY after if condition = $ROLE_ARN_KEY"
       - echo "ENV_TAG = $ENV_TAG"
@@ -39,12 +21,6 @@ phases:
       - ROLE_ARN=$(aws ssm get-parameter --name "$ROLE_ARN_KEY" --query 'Parameter.Value' --output text)
       - export ROLE_ARN
       - export ENV_TAG
-      - export ENV_PREFIX
-      - export SP_USERNAME
-      - export SP_SITE_URL
-      - export SFTP_HOST
-      - export SFTP_USERNAME
-      - export SFTP_DIRECTORY
       - >
         ASSUME_ROLE_CREDS=$(aws sts assume-role --role-arn $ROLE_ARN --role-session-name codebuild-session)
       - export AWS_ACCESS_KEY_ID=$(echo $ASSUME_ROLE_CREDS | jq -r '.Credentials.AccessKeyId')
@@ -59,6 +35,7 @@ phases:
           if [ -d "$dir" ]; then
             echo "Processing directory: $dir"
             DIR_NAME=$(basename "$dir")
+            echo "Extracted directory name: $DIR_NAME"
             echo "Applying Terraform in $dir with Environment tag as $ENV_TAG and Prefix as $ENV_PREFIX"
             cd $dir
             # Dynamically generate backend.tf from the template in each directory
@@ -67,7 +44,7 @@ phases:
             terraform fmt
             terraform validate
             
-            # Determine workspace based on environment
+            # Determine workspace based on the environment
             case "$ENV_TAG" in
               development)
                 WORKSPACE_NAME="dev"
@@ -83,14 +60,17 @@ phases:
                 exit 1
                 ;;
             esac
-
+            
             echo "Using workspace: $WORKSPACE_NAME"
-
+            
             # Select or create the workspace
             terraform workspace select $WORKSPACE_NAME || terraform workspace new $WORKSPACE_NAME
-
-            # Apply the deployment with dynamic environment prefix
-            terraform apply -auto-approve -input=false -var "role_arn=$ROLE_ARN" -var "environment=$ENV_TAG" -var "env_prefix=$ENV_PREFIX" -var "sp_username=$SP_USERNAME" -var "sp_site_url=$SP_SITE_URL" -var "sftp_host=$SFTP_HOST" -var "sftp_username=$SFTP_USERNAME" -var "sftp_directory=$SFTP_DIRECTORY"
+            
+            # Plan the deployment with dynamic environment prefix
+            PLAN_FILE="plan-${DIR_NAME}.tfplan"
+            terraform plan -out=$PLAN_FILE -var "role_arn=$ROLE_ARN" -var "environment=$ENV_TAG"
+            
+            echo "Plan file created at $PLAN_FILE"
             
             cd - > /dev/null
           fi
@@ -98,4 +78,4 @@ phases:
 
   post_build:
     commands:
-      - echo "Build and deployment completed for the $ENV_TAG environment."
+      - echo "Build and planning completed for the $ENV_TAG environment. Review and approve plans manually for production environment."

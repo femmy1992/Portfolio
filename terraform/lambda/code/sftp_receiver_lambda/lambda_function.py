@@ -11,16 +11,8 @@ logger.setLevel(logging.INFO)
 
 # Initialize AWS clients
 s3_client = boto3.client('s3')
-ssm_client = boto3.client('ssm')
 
-def get_ssm_parameter(parameter_name):
-    """
-    Retrieve a parameter from AWS SSM Parameter Store.
-    """
-    parameter = ssm_client.get_parameter(Name=parameter_name, WithDecryption=True)
-    return parameter['Parameter']['Value']
-
-def sftp_pull_files(sftp_host, sftp_username, private_key_path, s3_bucket_name, sftp_directory):
+def sftp_pull_files(sftp_host, sftp_username, private_key_path, s3_bucket_name, sftp_directory, receiver_bucket_prefix):
     """
     Pull files from an SFTP server, upload them to S3, and remove them from the SFTP server.
     """
@@ -37,7 +29,7 @@ def sftp_pull_files(sftp_host, sftp_username, private_key_path, s3_bucket_name, 
 
         # Change to the correct directory on the SFTP server
         logger.info(f"Changing directory to {sftp_directory}...")
-        sftp.chdir(sftp_directory)  # Navigate to the provided directory
+        sftp.chdir(sftp_directory)
 
         # List files in the target directory
         logger.info("Fetching files from SFTP server...")
@@ -51,11 +43,11 @@ def sftp_pull_files(sftp_host, sftp_username, private_key_path, s3_bucket_name, 
             local_path = f'/tmp/{file}'
             sftp.get(file, local_path)  # Download the file
 
-            # Upload to S3
+            # Upload to S3, using the receiver bucket prefix (e.g., /request)
             date_folder = datetime.now().strftime('%Y-%m-%d')
-            s3_key = f'{date_folder}/{file}'
+            s3_key = f'{receiver_bucket_prefix}/{date_folder}/{file}'
             s3_client.upload_file(local_path, s3_bucket_name, s3_key)
-            logger.info(f'Uploaded {file} to S3 bucket under {date_folder}.')
+            logger.info(f'Uploaded {file} to S3 bucket under {receiver_bucket_prefix}/{date_folder}.')
             files_copied_count += 1
 
             # Remove file from SFTP server after copying
@@ -75,28 +67,36 @@ def lambda_handler(event, context):
     AWS Lambda handler function.
     """
     try:
-        # Retrieve environment variables for SFTP access and the S3 bucket name
-        sftp_host = os.environ['SFTP_HOST']
-        sftp_username = os.environ['SFTP_USERNAME']
-        sftp_directory = os.environ['SFTP_DIRECTORY']
-        s3_bucket_name = os.environ['S3_BUCKET_NAME']
+        # Retrieve runtime parameters from the Step Function input
+        sftp_host = event.get('SFTP_HOST')
+        sftp_username = event.get('SFTP_USERNAME')
+        sftp_directory = event.get('SFTP_DIRECTORY_RECEIVER')
+        s3_bucket_name = event.get('S3_BUCKET_NAME')
+        private_key_content = event.get('SFTP_PRIVATE_KEY')
+        receiver_bucket_prefix = event.get('RECEIVER_BUCKET_PREFIX')  
 
-        # Retrieve the private key from SSM Parameter Store
-        private_key = get_ssm_parameter('sftp-private_key')
-
-        # Save private key to /tmp directory
+        # Debugging 
+        logger.info(f"Received private key content: {private_key_content[:100]}...")
+        logger.info(f"Received sftp host: {sftp_host}...")
+        logger.info(f"Received sftp username: {sftp_username}...")
+        logger.info(f"Received sftp directory: {sftp_directory}...")
+        logger.info(f"Received s3 bucket: {s3_bucket_name}...")
+        logger.info(f"Received s3 prefix: {receiver_bucket_prefix}...")
+        
+        # Save the private key to /tmp directory
         private_key_path = '/tmp/sftp_key.pem'
         
         # If the file exists, remove it before writing the new key
         if os.path.exists(private_key_path):
             os.remove(private_key_path)
-            
+        
+        # Write the private key content to a file
         with open(private_key_path, 'w') as key_file:
-            key_file.write(private_key)
-        os.chmod(private_key_path, 0o400)  
+            key_file.write(private_key_content)
+        os.chmod(private_key_path, 0o400)  # Set appropriate permissions on the key file
 
         logger.info("Starting SFTP Pull and S3 Upload Process...")
-        copied_files, files_copied_count = sftp_pull_files(sftp_host, sftp_username, private_key_path, s3_bucket_name, sftp_directory)
+        copied_files, files_copied_count = sftp_pull_files(sftp_host, sftp_username, private_key_path, s3_bucket_name, sftp_directory, receiver_bucket_prefix)
         
         date_folder = datetime.now().strftime('%Y-%m-%d')
 
@@ -110,5 +110,5 @@ def lambda_handler(event, context):
 
     return {
         'statusCode': 200,
-        'body': json.dumps(f'SFTP Pull and S3 Upload Process Completed. {files_copied_count} files copied to folder {date_folder}.')
+        'body': json.dumps(f'SFTP Pull and S3 Upload Process Completed. {files_copied_count} files copied to folder {receiver_bucket_prefix}/{date_folder}.')
     }

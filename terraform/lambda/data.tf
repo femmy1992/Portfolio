@@ -1,7 +1,10 @@
 data "aws_caller_identity" "current" {}
 
 data "aws_security_group" "sg" {
-  name = "sg"
+  filter {
+    name = "tag:Name"
+    values = ["security-group"]
+  }
 }
 
 data "aws_iam_role" "lambda_role" {
@@ -11,7 +14,7 @@ data "aws_iam_role" "lambda_role" {
 data "aws_subnets" "subnets" {
   filter {
     name   = "tag:Name"
-    values = ["snet-${var.env_prefix}-web-ca-central-1a", "snet-${var.env_prefix}-web-ca-central-1b"]
+    values = ["subnet1", "subnet2"]
   }
 }
 
@@ -19,10 +22,31 @@ data "aws_s3_bucket" "bucket" {
   bucket = "bucket-${data.aws_caller_identity.current.account_id}"
 }
 
-data "archive_file" "python_lambda_package" {
-  for_each = var.lambda
+data "aws_sfn_state_machine" "state" {
+  name = "step-function"
+}
+
+data "archive_file" "python_lambda_package1" {
   type        = "zip"
-  source_file= "./code/${each.key}/lambda_function.py"
-  output_path = "${path.module}/lambda_function_${each.key}.zip"
+  source_file= "./code/sftp_receiver_lambda/lambda_function.py"
+  output_path = "${path.module}/lambda_function_sftp_receiver_lambda.zip"
+}
+
+data "archive_file" "python_lambda_package2" {
+  type        = "zip"
+  source_file= "./code/sftp_uploader_lambda/lambda_function.py"
+  output_path = "${path.module}/lambda_function_sftp_uploader_lambda.zip"
+}
+
+data "archive_file" "python_lambda_package3" {
+  type        = "zip"
+  source_file= "./code/sharepoint_uploader_lambda/lambda_function.py"
+  output_path = "${path.module}/lambda_function_sharepoint_uploader_lambda.zip"
+}
+
+data "archive_file" "lambda_dependencies_layer" {
+  type        = "zip"
+  source_dir  = "${path.module}/code/lambda_layer/"
+  output_path = "${path.module}/code/lambda_layer.zip"
 }
 
